@@ -15,6 +15,7 @@ import inspect
 from typing import Any, Callable, Dict, List, Optional, Union
 import copy
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 import torch
 from packaging import version
@@ -812,6 +813,7 @@ class StableDiffusionPipeline(
         score_function: Optional[Callable] = None,
         method: Optional[str] = "eps_greedy",
         params: Optional[dict] = None,
+        search_data_logger: Optional[Any] = None,
         **kwargs,
     ):
         r"""
@@ -1366,21 +1368,27 @@ class StableDiffusionPipeline(
                 pivot = torch.randn_like(latents)
 
                 if method == "eps_greedy" or method == "zero_order":
-                    for _ in range(params['K']):
+                    # Track best global/local candidate scores seen so far within this timestep.
+                    running_best_global_score = None
+                    running_best_local_score = None
+                    for local_iter_idx in range(params['K']):
                         noise_candidates = []
+                        candidate_is_global = []
                         for _ in range(params['N']):
                             # choose random float between 0 and 1
                             r = torch.rand(1).item()
                             if r < params['eps'] if method == "eps_greedy" else 0.0:
                                 noise_candidates.append(torch.randn_like(latents))
+                                candidate_is_global.append(True)
                             else:
                                 to_add = torch.randn_like(latents)
                                 to_add = to_add / torch.norm(to_add)
                                 noise_candidates.append(pivot + to_add * torch.rand(1).item() * params['lambda'] * np.sqrt(latents.shape[-1] * latents.shape[-2] * latents.shape[-3]))
+                                candidate_is_global.append(False)
 
-                        noise2score = {}
+                        noise_score_entries = []
 
-                        for noise_candidate in noise_candidates:
+                        for cand_idx, noise_candidate in enumerate(noise_candidates):
                             latents_cand, pred_x0 = self.scheduler.step(noise_pred, t, latents, variance_noise=noise_candidate, **extra_step_kwargs, return_dict=False)
                             
 
@@ -1426,11 +1434,70 @@ class StableDiffusionPipeline(
                             else:
                                 score_value = float(score)
 
-                            noise2score[noise_candidate] = score_value
+                            noise_score_entries.append(
+                                {
+                                    "candidate_idx": cand_idx,
+                                    "noise": noise_candidate,
+                                    "score": score_value,
+                                    "is_global_candidate": candidate_is_global[cand_idx],
+                                }
+                            )
                         
                         # Select the noise candidate with the highest score
-                        max_score = max(noise2score.values())
-                        pivot = max(noise2score, key=noise2score.get)
+                        best_entry = max(noise_score_entries, key=lambda x: x["score"])
+                        max_score = best_entry["score"]
+                        pivot = best_entry["noise"]
+
+                        if search_data_logger is not None:
+                            global_scores = [entry["score"] for entry in noise_score_entries if entry["is_global_candidate"]]
+                            local_scores = [entry["score"] for entry in noise_score_entries if not entry["is_global_candidate"]]
+                            best_global_score = max(global_scores) if len(global_scores) > 0 else None
+                            best_local_score = max(local_scores) if len(local_scores) > 0 else None
+                            winner_is_global = bool(best_entry["is_global_candidate"])
+                            if best_global_score is not None:
+                                if running_best_global_score is None:
+                                    running_best_global_score = best_global_score
+                                else:
+                                    running_best_global_score = max(running_best_global_score, best_global_score)
+                            if best_local_score is not None:
+                                if running_best_local_score is None:
+                                    running_best_local_score = best_local_score
+                                else:
+                                    running_best_local_score = max(running_best_local_score, best_local_score)
+                            winner_is_global_best_so_far = (
+                                running_best_global_score is not None
+                                and (
+                                    running_best_local_score is None
+                                    or running_best_global_score >= running_best_local_score
+                                )
+                            )
+                            for entry in noise_score_entries:
+                                search_data_logger.log(
+                                    {
+                                        "event_type": "candidate_eval",
+                                        "ts_utc": datetime.now(timezone.utc).isoformat(),
+                                        "backend": "sd",
+                                        "method": method,
+                                        "sample_idx": 0,
+                                        "prompt": prompt,
+                                        "class_label_idx": None,
+                                        "timestep_idx": int(i),
+                                        "timestep_value": float(t.item()) if torch.is_tensor(t) else float(t),
+                                        "local_iter_idx": int(local_iter_idx),
+                                        "candidate_idx": int(entry["candidate_idx"]),
+                                        "is_global_candidate": bool(entry["is_global_candidate"]),
+                                        "score": float(entry["score"]),
+                                        "is_winner": bool(entry["candidate_idx"] == best_entry["candidate_idx"]),
+                                        "winner_is_global": winner_is_global,
+                                        "winner_is_global_current": winner_is_global,
+                                        "winner_is_global_best_so_far": bool(winner_is_global_best_so_far),
+                                        "winner_score": float(best_entry["score"]),
+                                        "best_global_score": None if best_global_score is None else float(best_global_score),
+                                        "best_local_score": None if best_local_score is None else float(best_local_score),
+                                        "best_global_score_so_far": None if running_best_global_score is None else float(running_best_global_score),
+                                        "best_local_score_so_far": None if running_best_local_score is None else float(running_best_local_score),
+                                    }
+                                )
                 
                 latents, _ = self.scheduler.step(noise_pred, t, latents, variance_noise=pivot, **extra_step_kwargs, return_dict=False)
 

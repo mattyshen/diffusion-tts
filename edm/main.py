@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict, Any
 from scorers import Scorer, CompressibilityScorer, BrightnessScorer, ImageNetScorer
 from torchvision import transforms
+from search_logging import utc_now_iso
 
 class SamplingMethod(Enum):
     MCTS = auto()
@@ -52,6 +53,7 @@ def generate_image_grid(
     sampling_method: SamplingMethod = SamplingMethod.NAIVE,
     sampling_params: Optional[Dict[str, Any]] = None,
     precomputed_noise: Optional[Dict[int, torch.Tensor]] = None,
+    search_data_logger=None,
 ):
     # Set up environment and seed
     batch_size = gridw * gridh
@@ -739,6 +741,8 @@ def generate_image_grid(
             # For each timestep, store the best noise from each local search iteration
             # Shape: [K, batch_size, C, H, W]
             best_noises_this_timestep = []
+            running_best_global_scores = [None for _ in range(batch_size)]
+            running_best_local_scores = [None for _ in range(batch_size)]
             
             # Run K iterations of local search
             for k in range(K):
@@ -746,6 +750,7 @@ def generate_image_grid(
                 
                 # Generate N candidate noises by adding scaled random vectors
                 candidate_noises = []
+                candidate_is_global = []
                 for n in range(N):
                     # Decide between perturbed noise or fresh noise
                     if torch.rand(1, device=device) < (1 - eps):
@@ -786,6 +791,7 @@ def generate_image_grid(
                         # print(f"Final shapes - base_noise: {base_noise.shape}, random_direction: {random_direction.shape}, scale: {scale.shape}")
                         
                         candidate_noise = base_noise + scale * random_direction
+                        candidate_is_global.append(False)
                     else:
                         # Use precomputed fresh noise if available
                         if precomputed_noise is not None and f'fresh_{i}_{k}_{n}' in precomputed_noise:
@@ -793,6 +799,7 @@ def generate_image_grid(
                         else:
                             # With probability eps, just use a fresh Gaussian sample
                             candidate_noise = torch.randn_like(x_cur)
+                        candidate_is_global.append(True)
                     
                     candidate_noises.append(candidate_noise)
                 
@@ -840,6 +847,68 @@ def generate_image_grid(
                 
                 # Find the best noise for each sample in the batch
                 best_indices = scores.argmax(dim=0)  # [batch_size]
+
+                if search_data_logger is not None:
+                    class_idx_by_sample = None
+                    if class_labels is not None:
+                        class_idx_by_sample = torch.argmax(class_labels, dim=1).cpu().tolist()
+                    for batch_idx in range(batch_size):
+                        sample_scores = scores[:, batch_idx]
+                        best_idx = int(best_indices[batch_idx].item())
+                        winner_score = float(sample_scores[best_idx].item())
+                        global_idxs = [j for j, flag in enumerate(candidate_is_global) if flag]
+                        local_idxs = [j for j, flag in enumerate(candidate_is_global) if not flag]
+                        best_global_score = float(sample_scores[global_idxs].max().item()) if global_idxs else None
+                        best_local_score = float(sample_scores[local_idxs].max().item()) if local_idxs else None
+                        if best_global_score is not None:
+                            if running_best_global_scores[batch_idx] is None:
+                                running_best_global_scores[batch_idx] = best_global_score
+                            else:
+                                running_best_global_scores[batch_idx] = max(
+                                    running_best_global_scores[batch_idx], best_global_score
+                                )
+                        if best_local_score is not None:
+                            if running_best_local_scores[batch_idx] is None:
+                                running_best_local_scores[batch_idx] = best_local_score
+                            else:
+                                running_best_local_scores[batch_idx] = max(
+                                    running_best_local_scores[batch_idx], best_local_score
+                                )
+                        winner_is_global_best_so_far = (
+                            running_best_global_scores[batch_idx] is not None
+                            and (
+                                running_best_local_scores[batch_idx] is None
+                                or running_best_global_scores[batch_idx] >= running_best_local_scores[batch_idx]
+                            )
+                        )
+                        winner_is_global = bool(candidate_is_global[best_idx])
+                        for cand_idx in range(N):
+                            search_data_logger.log(
+                                {
+                                    "event_type": "candidate_eval",
+                                    "ts_utc": utc_now_iso(),
+                                    "backend": "edm",
+                                    "method": sampling_method.name.lower(),
+                                    "sample_idx": int(batch_idx),
+                                    "prompt": None,
+                                    "class_label_idx": None if class_idx_by_sample is None else int(class_idx_by_sample[batch_idx]),
+                                    "timestep_idx": int(i),
+                                    "timestep_value": float(t_cur.item()),
+                                    "local_iter_idx": int(k),
+                                    "candidate_idx": int(cand_idx),
+                                    "is_global_candidate": bool(candidate_is_global[cand_idx]),
+                                    "score": float(sample_scores[cand_idx].item()),
+                                    "is_winner": bool(cand_idx == best_idx),
+                                    "winner_is_global": winner_is_global,
+                                    "winner_is_global_current": winner_is_global,
+                                    "winner_is_global_best_so_far": bool(winner_is_global_best_so_far),
+                                    "winner_score": winner_score,
+                                    "best_global_score": best_global_score,
+                                    "best_local_score": best_local_score,
+                                    "best_global_score_so_far": running_best_global_scores[batch_idx],
+                                    "best_local_score_so_far": running_best_local_scores[batch_idx],
+                                }
+                            )
                 
                 # Gather best noise for each batch element
                 candidate_noises_batch = all_noises.reshape(N, batch_size, *all_noises.shape[1:])  # [N, batch_size, C, H, W]

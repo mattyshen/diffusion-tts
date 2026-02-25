@@ -60,8 +60,17 @@ class ImageNetScorer(Scorer):
         # URL for the classifier weights
         url = "https://openaipublic.blob.core.windows.net/diffusion/jul-2021/64x64_classifier.pt"
         
-        # Create a directory for downloaded models if it doesn't exist
-        cache_dir = os.path.expanduser("~/.cache/imagenet_classifier")
+        # Resolve cache directory. Priority:
+        # 1) IMAGENET_CLASSIFIER_CACHE_DIR
+        # 2) $XDG_CACHE_HOME/imagenet_classifier
+        # 3) ~/.cache/imagenet_classifier
+        cache_dir = os.environ.get("IMAGENET_CLASSIFIER_CACHE_DIR")
+        if not cache_dir:
+            xdg_cache = os.environ.get("XDG_CACHE_HOME")
+            if xdg_cache:
+                cache_dir = os.path.join(xdg_cache, "imagenet_classifier")
+            else:
+                cache_dir = os.path.expanduser("~/.cache/imagenet_classifier")
         os.makedirs(cache_dir, exist_ok=True)
         
         # Path to save the downloaded model
