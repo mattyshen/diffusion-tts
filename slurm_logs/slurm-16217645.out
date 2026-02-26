@@ -1,21 +1,0 @@
-HOME redirected to: /scratch/beyz/mshen2
-[run] experiment=fig2left_edm_imagenet_eps_greedy_c5_seed0
-[run] backend=edm scorer=imagenet method=eps_greedy
-[run] hyperparams: N=4 K=20 eps=0.4 lambda=0.15 seed=0
-[run] class indices: 5,6,7,8,9
-[run] logs -> logs/search_stats/fig2left_edm_imagenet_eps_greedy_c5_seed0
-[run] plots -> outputs/plots/fig2left_edm_imagenet_eps_greedy_c5_seed0
-[EDM] Search logging enabled: logs/search_stats/fig2left_edm_imagenet_eps_greedy_c5_seed0/fig2left_edm_imagenet_eps_greedy_c5_seed0_edm_eps_greedy_imagenet_20260225T163230Z.jsonl
-Using sampling method: EPS_GREEDY
-Loading network from "https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/edm-imagenet-64x64-cond-adm.pkl"...
-Zero-Order parameters: lambda=0.15, N=4, K=20, eps=0.4
-  0%|          | 0/18 [00:00<?, ?step/s]  6%|▌         | 1/18 [00:29<08:21, 29.48s/step] 11%|█         | 2/18 [00:57<07:36, 28.55s/step] 17%|█▋        | 3/18 [01:25<07:03, 28.24s/step] 22%|██▏       | 4/18 [01:53<06:32, 28.05s/step] 28%|██▊       | 5/18 [02:20<06:04, 28.01s/step] 33%|███▎      | 6/18 [02:48<05:35, 27.95s/step] 39%|███▉      | 7/18 [03:16<05:06, 27.90s/step] 44%|████▍     | 8/18 [03:44<04:39, 27.95s/step] 50%|█████     | 9/18 [04:12<04:12, 28.02s/step] 56%|█████▌    | 10/18 [04:40<03:43, 28.00s/step] 61%|██████    | 11/18 [05:08<03:16, 28.02s/step] 67%|██████▋   | 12/18 [05:36<02:48, 28.05s/step] 72%|███████▏  | 13/18 [06:05<02:20, 28.05s/step] 78%|███████▊  | 14/18 [06:33<01:52, 28.07s/step] 83%|████████▎ | 15/18 [07:01<01:24, 28.11s/step] 89%|████████▉ | 16/18 [07:29<00:56, 28.09s/step] 94%|█████████▍| 17/18 [07:57<00:28, 28.06s/step]100%|██████████| 18/18 [08:24<00:00, 27.77s/step]100%|██████████| 18/18 [08:24<00:00, 28.02s/step]
-Average score: 0.999968409538269
-Saving image grid to "edm_eps_greedy_imagenet.png"...
-Done.
-
-[EDM] Saved: edm_eps_greedy_imagenet.png
-
-Done.
-Logs: logs/search_stats/fig2left_edm_imagenet_eps_greedy_c5_seed0
-Plots dir reserved for post-hoc analysis: outputs/plots/fig2left_edm_imagenet_eps_greedy_c5_seed0
