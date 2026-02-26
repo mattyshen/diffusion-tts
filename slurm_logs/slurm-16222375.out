@@ -1,0 +1,22 @@
+HOME redirected to: /scratch/beyz/mshen2
+[run] experiment=inefficiency model=EDM reward=CLASSIFIER
+[run] run_tag=eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15
+[run] backend=edm scorer=imagenet method=eps_greedy
+[run] hyperparams: N=4 K=20 eps=0.4 lambda=0.15 seed=0
+[run] class indices: 0,1,2,3,4,5,6,7,8,9
+[run] logs -> logs/search_stats/inefficiency/EDM/CLASSIFIER/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15
+[run] outputs -> outputs/inefficiency/EDM/CLASSIFIER/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15
+[EDM] Search logging enabled: logs/search_stats/inefficiency/EDM/CLASSIFIER/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15_edm_eps_greedy_imagenet_20260225T213502Z.jsonl
+Using sampling method: EPS_GREEDY
+Loading network from "https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/edm-imagenet-64x64-cond-adm.pkl"...
+Zero-Order parameters: lambda=0.15, N=4, K=20, eps=0.4
+  0%|          | 0/18 [00:00<?, ?step/s]  6%|▌         | 1/18 [01:00<17:14, 60.85s/step] 11%|█         | 2/18 [01:59<15:56, 59.77s/step] 17%|█▋        | 3/18 [02:58<14:47, 59.16s/step] 22%|██▏       | 4/18 [03:57<13:45, 59.00s/step] 28%|██▊       | 5/18 [04:55<12:46, 58.92s/step] 33%|███▎      | 6/18 [05:54<11:46, 58.85s/step] 39%|███▉      | 7/18 [06:53<10:46, 58.81s/step] 44%|████▍     | 8/18 [07:52<09:48, 58.87s/step] 50%|█████     | 9/18 [08:51<08:49, 58.87s/step] 56%|█████▌    | 10/18 [09:49<07:50, 58.86s/step] 61%|██████    | 11/18 [10:49<06:52, 58.98s/step] 67%|██████▋   | 12/18 [11:48<05:53, 58.92s/step] 72%|███████▏  | 13/18 [12:46<04:54, 58.88s/step] 78%|███████▊  | 14/18 [13:45<03:55, 58.97s/step] 83%|████████▎ | 15/18 [14:44<02:56, 58.97s/step] 89%|████████▉ | 16/18 [15:44<01:58, 59.00s/step] 94%|█████████▍| 17/18 [16:42<00:58, 58.94s/step]100%|██████████| 18/18 [17:38<00:00, 58.06s/step]100%|██████████| 18/18 [17:38<00:00, 58.82s/step]
+Average score: 0.999988853931427
+Saving image grid to "outputs/inefficiency/EDM/CLASSIFIER/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15/images/edm_imagenet_eps_greedy.png"...
+Done.
+
+[EDM] Saved: outputs/inefficiency/EDM/CLASSIFIER/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15/images/edm_imagenet_eps_greedy.png
+
+Done.
+Logs: logs/search_stats/inefficiency/EDM/CLASSIFIER/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15
+Outputs: outputs/inefficiency/EDM/CLASSIFIER/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15

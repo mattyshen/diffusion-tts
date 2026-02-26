@@ -1,0 +1,22 @@
+HOME redirected to: /scratch/beyz/mshen2
+[run] experiment=inefficiency model=EDM reward=BRIGHTNESS
+[run] run_tag=eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15
+[run] backend=edm scorer=brightness method=eps_greedy
+[run] hyperparams: N=4 K=20 eps=0.4 lambda=0.15 seed=0
+[run] class indices: 0,1,2,3,4,5,6,7,8,9
+[run] logs -> logs/search_stats/inefficiency/EDM/BRIGHTNESS/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15
+[run] outputs -> outputs/inefficiency/EDM/BRIGHTNESS/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15
+[EDM] Search logging enabled: logs/search_stats/inefficiency/EDM/BRIGHTNESS/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15_edm_eps_greedy_brightness_20260225T213420Z.jsonl
+Using sampling method: EPS_GREEDY
+Loading network from "https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/edm-imagenet-64x64-cond-adm.pkl"...
+Zero-Order parameters: lambda=0.15, N=4, K=20, eps=0.4
+  0%|          | 0/18 [00:00<?, ?step/s]  6%|▌         | 1/18 [00:07<02:08,  7.55s/step] 11%|█         | 2/18 [00:12<01:40,  6.30s/step] 17%|█▋        | 3/18 [00:18<01:28,  5.90s/step] 22%|██▏       | 4/18 [00:23<01:20,  5.71s/step] 28%|██▊       | 5/18 [00:29<01:12,  5.61s/step] 33%|███▎      | 6/18 [00:34<01:06,  5.55s/step] 39%|███▉      | 7/18 [00:40<01:00,  5.52s/step] 44%|████▍     | 8/18 [00:45<00:54,  5.50s/step] 50%|█████     | 9/18 [00:51<00:49,  5.48s/step] 56%|█████▌    | 10/18 [00:56<00:43,  5.46s/step] 61%|██████    | 11/18 [01:01<00:38,  5.45s/step] 67%|██████▋   | 12/18 [01:07<00:32,  5.44s/step] 72%|███████▏  | 13/18 [01:12<00:27,  5.44s/step] 78%|███████▊  | 14/18 [01:18<00:21,  5.44s/step] 83%|████████▎ | 15/18 [01:23<00:16,  5.44s/step] 89%|████████▉ | 16/18 [01:29<00:10,  5.43s/step] 94%|█████████▍| 17/18 [01:34<00:05,  5.43s/step]100%|██████████| 18/18 [01:37<00:00,  4.64s/step]100%|██████████| 18/18 [01:37<00:00,  5.40s/step]
+Average score: 0.9999940991401672
+Saving image grid to "outputs/inefficiency/EDM/BRIGHTNESS/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15/images/edm_brightness_eps_greedy.png"...
+Done.
+
+[EDM] Saved: outputs/inefficiency/EDM/BRIGHTNESS/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15/images/edm_brightness_eps_greedy.png
+
+Done.
+Logs: logs/search_stats/inefficiency/EDM/BRIGHTNESS/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15
+Outputs: outputs/inefficiency/EDM/BRIGHTNESS/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15

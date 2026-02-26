@@ -1,0 +1,22 @@
+HOME redirected to: /scratch/beyz/mshen2
+[run] experiment=inefficiency model=EDM reward=COMPRESSIBILITY
+[run] run_tag=eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15
+[run] backend=edm scorer=compressibility method=eps_greedy
+[run] hyperparams: N=4 K=20 eps=0.4 lambda=0.15 seed=0
+[run] class indices: 0,1,2,3,4,5,6,7,8,9
+[run] logs -> logs/search_stats/inefficiency/EDM/COMPRESSIBILITY/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15
+[run] outputs -> outputs/inefficiency/EDM/COMPRESSIBILITY/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15
+[EDM] Search logging enabled: logs/search_stats/inefficiency/EDM/COMPRESSIBILITY/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15_edm_eps_greedy_compressibility_20260225T213507Z.jsonl
+Using sampling method: EPS_GREEDY
+Loading network from "https://nvlabs-fi-cdn.nvidia.com/edm/pretrained/edm-imagenet-64x64-cond-adm.pkl"...
+Zero-Order parameters: lambda=0.15, N=4, K=20, eps=0.4
+  0%|          | 0/18 [00:00<?, ?step/s]  6%|▌         | 1/18 [00:06<01:46,  6.27s/step] 11%|█         | 2/18 [00:11<01:33,  5.87s/step] 17%|█▋        | 3/18 [00:17<01:26,  5.75s/step] 22%|██▏       | 4/18 [00:23<01:19,  5.69s/step] 28%|██▊       | 5/18 [00:28<01:13,  5.66s/step] 33%|███▎      | 6/18 [00:34<01:07,  5.64s/step] 39%|███▉      | 7/18 [00:39<01:01,  5.62s/step] 44%|████▍     | 8/18 [00:45<00:56,  5.62s/step] 50%|█████     | 9/18 [00:51<00:50,  5.61s/step] 56%|█████▌    | 10/18 [00:56<00:44,  5.61s/step] 61%|██████    | 11/18 [01:05<00:45,  6.52s/step] 67%|██████▋   | 12/18 [01:10<00:37,  6.24s/step] 72%|███████▏  | 13/18 [01:16<00:30,  6.04s/step] 78%|███████▊  | 14/18 [01:22<00:23,  5.91s/step] 83%|████████▎ | 15/18 [01:27<00:17,  5.81s/step] 89%|████████▉ | 16/18 [01:34<00:12,  6.20s/step] 94%|█████████▍| 17/18 [01:42<00:06,  6.59s/step]100%|██████████| 18/18 [01:45<00:00,  5.50s/step]100%|██████████| 18/18 [01:45<00:00,  5.84s/step]
+Average score: 0.6908666491508484
+Saving image grid to "outputs/inefficiency/EDM/COMPRESSIBILITY/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15/images/edm_compressibility_eps_greedy.png"...
+Done.
+
+[EDM] Saved: outputs/inefficiency/EDM/COMPRESSIBILITY/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15/images/edm_compressibility_eps_greedy.png
+
+Done.
+Logs: logs/search_stats/inefficiency/EDM/COMPRESSIBILITY/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15
+Outputs: outputs/inefficiency/EDM/COMPRESSIBILITY/eps_greedy_c10_seed0_N4_K20_eps0.4_lam0.15

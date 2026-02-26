@@ -8,13 +8,3 @@ stingray
 cock
 hen
 ostrich, Struthio camelus
-brambling, Fringilla montifringilla
-goldfinch, Carduelis carduelis
-house finch, linnet, Carpodacus mexicanus
-junco, snowbird
-indigo bunting, indigo finch, indigo bird, Passerina cyanea
-robin, American robin, Turdus migratorius
-bulbul
-jay
-magpie
-chickadee
