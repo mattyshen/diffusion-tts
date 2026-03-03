@@ -1367,24 +1367,58 @@ class StableDiffusionPipeline(
 
                 pivot = torch.randn_like(latents)
 
-                if method == "eps_greedy" or method == "zero_order":
+                if method in {"eps_greedy", "zero_order", "adap_eps_greedy"}:
                     # Track best global/local candidate scores seen so far within this timestep.
                     running_best_global_score = None
                     running_best_local_score = None
-                    for local_iter_idx in range(params['K']):
+                    adap_z_value = None
+                    adap_alpha = None
+                    adap_Kg = None
+                    adap_mode = "off"
+                    K_loop = int(params['K'])
+                    N_loop = int(params['N'])
+                    eps_loop = float(params.get('eps', 0.0))
+
+                    if method == "adap_eps_greedy":
+                        adap_profile = params.get("adap_z_profile")
+                        if adap_profile is None or i >= len(adap_profile):
+                            raise ValueError("adap_eps_greedy requires params['adap_z_profile'] with one value per timestep")
+                        adap_z_value = float(adap_profile[i])
+                        adap_alpha = float(params.get("adap_alpha", 0.0))
+                        adap_Kg = max(1, int(params.get("adap_Kg", params['N'])))
+                        if adap_z_value >= adap_alpha:
+                            adap_mode = "expressive"
+                        else:
+                            adap_mode = "global_only"
+                            K_loop = 1
+                            N_loop = adap_Kg
+                            eps_loop = 1.0
+
+                    for local_iter_idx in range(K_loop):
                         noise_candidates = []
                         candidate_is_global = []
-                        for _ in range(params['N']):
-                            # choose random float between 0 and 1
-                            r = torch.rand(1).item()
-                            if r < params['eps'] if method == "eps_greedy" else 0.0:
+                        for _ in range(N_loop):
+                            if adap_mode == "global_only":
                                 noise_candidates.append(torch.randn_like(latents))
                                 candidate_is_global.append(True)
                             else:
-                                to_add = torch.randn_like(latents)
-                                to_add = to_add / torch.norm(to_add)
-                                noise_candidates.append(pivot + to_add * torch.rand(1).item() * params['lambda'] * np.sqrt(latents.shape[-1] * latents.shape[-2] * latents.shape[-3]))
-                                candidate_is_global.append(False)
+                                # choose random float between 0 and 1
+                                r = torch.rand(1).item()
+                                use_global = r < eps_loop if method in {"eps_greedy", "adap_eps_greedy"} else False
+                                if use_global:
+                                    noise_candidates.append(torch.randn_like(latents))
+                                    candidate_is_global.append(True)
+                                else:
+                                    to_add = torch.randn_like(latents)
+                                    to_add = to_add / torch.norm(to_add)
+                                    noise_candidates.append(
+                                        pivot
+                                        + to_add
+                                        * torch.rand(1).item()
+                                        * params['lambda']
+                                        * np.sqrt(latents.shape[-1] * latents.shape[-2] * latents.shape[-3])
+                                    )
+                                    candidate_is_global.append(False)
 
                         noise_score_entries = []
 
@@ -1496,6 +1530,10 @@ class StableDiffusionPipeline(
                                         "best_local_score": None if best_local_score is None else float(best_local_score),
                                         "best_global_score_so_far": None if running_best_global_score is None else float(running_best_global_score),
                                         "best_local_score_so_far": None if running_best_local_score is None else float(running_best_local_score),
+                                        "adap_z_value": adap_z_value,
+                                        "adap_alpha": adap_alpha,
+                                        "adap_mode": adap_mode,
+                                        "adap_Kg": adap_Kg,
                                     }
                                 )
                 

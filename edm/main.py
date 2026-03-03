@@ -32,6 +32,7 @@ class SamplingMethod(Enum):
     NAIVE = auto()
     REJECTION_SAMPLING = auto()
     EPS_GREEDY = auto()
+    ADAP_EPS_GREEDY = auto()
 
 @dataclass
 class SamplingParams:
@@ -41,6 +42,9 @@ class SamplingParams:
     lambda_param: float = 0.15
     eps: float = 0.4
     S: int = 8
+    adap_alpha: float = 0.0
+    adap_Kg: int = 4
+    adap_z: Optional[list] = None
     scorer: Scorer = field(default_factory=lambda: CompressibilityScorer(dtype=torch.float32))
 
 #----------------------------------------------------------------------------
@@ -139,7 +143,13 @@ def generate_image_grid(
         x_next = torch.stack([x_next_reshaped[i, idx] for i, idx in enumerate(best_indices)])  # [batch_size, C, H, W]
     elif sampling_method == SamplingMethod.BEAM_SEARCH:
         # Get beam search parameters
-        b, k = method_params.b, method_params.k
+        # Backward-compatible param resolution:
+        # - legacy code used lowercase b/k
+        # - current CLI/scripts pass B (beam branching) and N (beam width-like count)
+        b = int(getattr(method_params, "b", getattr(method_params, "B", 2)))
+        k = int(getattr(method_params, "k", getattr(method_params, "N", getattr(method_params, "K", 4))))
+        b = max(1, b)
+        k = max(1, k)
         batch_size = len(latents)
         print(f"Beam Search Parameters - b: {b}, k: {k}, batch_size: {batch_size}")
         
@@ -369,14 +379,18 @@ def generate_image_grid(
             new_x0 = []
             
             for sample_idx in range(batch_size):
-                sample_beam_indices = torch.arange(k, device=device) + sample_idx * k
                 sample_indices_k = topk_indices[sample_idx]  # [k]
                 
                 for beam_idx in range(k):
-                    # Calculate proper indices in the candidate tensors
-                    beam_base_idx = sample_beam_indices[beam_idx] // k  # Current beam index
-                    candidate_idx = sample_indices_k[beam_idx] % b  # Which of the b candidates was selected
-                    beam_batch_idx = beam_base_idx % cur_batch_size  # Simpler calculation for batch index
+                    # Map flattened index in [0, k*b) back to:
+                    # - beam index within sample [0, k)
+                    # - candidate index within beam [0, b)
+                    flat_idx = int(sample_indices_k[beam_idx].item())
+                    beam_within_sample = flat_idx // b
+                    candidate_idx = flat_idx % b
+
+                    # Global beam index in [0, batch_size*k)
+                    beam_batch_idx = sample_idx * k + beam_within_sample
                     
                     x_next_sample = x_candidate[beam_batch_idx, candidate_idx]  # [C, H, W]
                     x0_next_sample = x0_candidate[beam_batch_idx, candidate_idx]  # [C, H, W]
@@ -713,12 +727,23 @@ def generate_image_grid(
         # Combine results back into a batch
         x_next = torch.cat(results, dim=0)
         # print(f"MCTS sampling completed for all {batch_size} elements")
-    elif sampling_method == SamplingMethod.ZERO_ORDER or sampling_method == SamplingMethod.EPS_GREEDY:
+    elif sampling_method in {SamplingMethod.ZERO_ORDER, SamplingMethod.EPS_GREEDY, SamplingMethod.ADAP_EPS_GREEDY}:
         # Get Zero-Order parameters
         lambda_param = method_params.lambda_param * np.sqrt(3 * 64 * 64)
         N = method_params.N
         K = method_params.K
         eps = method_params.eps
+        use_adaptive = sampling_method == SamplingMethod.ADAP_EPS_GREEDY
+        adap_alpha = float(method_params.adap_alpha)
+        adap_Kg = max(1, int(method_params.adap_Kg))
+        adap_z = method_params.adap_z
+        if use_adaptive:
+            if adap_z is None:
+                raise ValueError("ADAP_EPS_GREEDY requires sampling_params['adap_z']")
+            if len(adap_z) < len(t_steps) - 1:
+                raise ValueError(
+                    f"Adaptive profile length mismatch: got {len(adap_z)}, expected at least {len(t_steps) - 1}"
+                )
         
         print(f"Zero-Order parameters: lambda={lambda_param / np.sqrt(3 * 64 * 64)}, N={N}, K={K}, eps={eps}")
         
@@ -743,19 +768,40 @@ def generate_image_grid(
             best_noises_this_timestep = []
             running_best_global_scores = [None for _ in range(batch_size)]
             running_best_local_scores = [None for _ in range(batch_size)]
+            adap_z_value = None
+            adap_mode = "off"
+            force_global_only = False
+            N_loop = N
+            K_loop = K
+            eps_loop = eps
+            if use_adaptive:
+                adap_z_value = float(adap_z[i])
+                if adap_z_value >= adap_alpha:
+                    adap_mode = "expressive"
+                else:
+                    adap_mode = "global_only"
+                    force_global_only = True
+                    N_loop = adap_Kg
+                    K_loop = 1
+                    eps_loop = 1.0
             
             # Run K iterations of local search
-            for k in range(K):
+            for k in range(K_loop):
                 base_noise = pivot_noise
                 
                 # Generate N candidate noises by adding scaled random vectors
                 candidate_noises = []
                 candidate_is_global = []
-                for n in range(N):
+                for n in range(N_loop):
                     # Decide between perturbed noise or fresh noise
-                    if torch.rand(1, device=device) < (1 - eps):
+                    if not force_global_only and torch.rand(1, device=device) < (1 - eps_loop):
                         # Use precomputed noise if available
-                        if precomputed_noise is not None and i in precomputed_noise and k < precomputed_noise[i].shape[1] and n < precomputed_noise[i].shape[2]:
+                        if (
+                            precomputed_noise is not None
+                            and i in precomputed_noise
+                            and k < precomputed_noise[i].shape[1]
+                            and n < precomputed_noise[i].shape[2]
+                        ):
                             # Extract direction from precomputed noise
                             random_direction = precomputed_noise[i][:, k, n]
                             # Debug print
@@ -807,10 +853,10 @@ def generate_image_grid(
                 all_noises = torch.cat(candidate_noises, dim=0)  # [N*batch_size, C, H, W]
                 
                 # Repeat x_cur and class_labels for each candidate
-                x_cur_expanded = x_cur.repeat(N, 1, 1, 1)  # [N*batch_size, C, H, W]
+                x_cur_expanded = x_cur.repeat(N_loop, 1, 1, 1)  # [N*batch_size, C, H, W]
                 class_labels_expanded = None
                 if class_labels is not None:
-                    class_labels_expanded = class_labels.repeat(N, 1)  # [N*batch_size, num_classes]
+                    class_labels_expanded = class_labels.repeat(N_loop, 1)  # [N*batch_size, num_classes]
                 
                 # Run denoising step for all candidates at once
                 x_candidates, x0_candidates = step(x_cur_expanded, t_cur, t_next, i, all_noises, class_labels_expanded)
@@ -820,11 +866,12 @@ def generate_image_grid(
                 channels, height, width = x_cur.shape[1:]
                 
                 # Handle case where the actual shape doesn't match our expected N*batch_size
-                effective_batch_size = total_images // N
+                effective_batch_size = total_images // N_loop
                 
                 # Reshape using the effective batch size
-                x_candidates = x_candidates.reshape(N, effective_batch_size, channels, height, width)
-                x0_candidates = x0_candidates.reshape(N, effective_batch_size, channels, height, width)
+                x_candidates = x_candidates.reshape(N_loop, effective_batch_size, channels, height, width)
+                x0_candidates = x0_candidates.reshape(N_loop, effective_batch_size, channels, height, width)
+                batch_size_cur = effective_batch_size
                 
                 # Score candidates
                 # Score based on predicted x0 (denoised result)
@@ -837,13 +884,13 @@ def generate_image_grid(
                 
                 # Make sure class labels are properly formatted for scorer
                 if class_labels is not None:
-                    scorer_class_labels = class_labels.repeat(N, 1)
+                    scorer_class_labels = class_labels.repeat(N_loop, 1)
                 else:
                     scorer_class_labels = None
                 
                 # Get scores for all candidates
                 scores = method_params.scorer(x_for_scoring, scorer_class_labels, timesteps)
-                scores = scores.reshape(N, batch_size)  # [N, batch_size]
+                scores = scores.reshape(N_loop, batch_size_cur)  # [N, batch_size]
                 
                 # Find the best noise for each sample in the batch
                 best_indices = scores.argmax(dim=0)  # [batch_size]
@@ -852,7 +899,7 @@ def generate_image_grid(
                     class_idx_by_sample = None
                     if class_labels is not None:
                         class_idx_by_sample = torch.argmax(class_labels, dim=1).cpu().tolist()
-                    for batch_idx in range(batch_size):
+                    for batch_idx in range(batch_size_cur):
                         sample_scores = scores[:, batch_idx]
                         best_idx = int(best_indices[batch_idx].item())
                         winner_score = float(sample_scores[best_idx].item())
@@ -882,7 +929,7 @@ def generate_image_grid(
                             )
                         )
                         winner_is_global = bool(candidate_is_global[best_idx])
-                        for cand_idx in range(N):
+                        for cand_idx in range(N_loop):
                             search_data_logger.log(
                                 {
                                     "event_type": "candidate_eval",
@@ -907,11 +954,15 @@ def generate_image_grid(
                                     "best_local_score": best_local_score,
                                     "best_global_score_so_far": running_best_global_scores[batch_idx],
                                     "best_local_score_so_far": running_best_local_scores[batch_idx],
+                                    "adap_z_value": adap_z_value,
+                                    "adap_alpha": adap_alpha if use_adaptive else None,
+                                    "adap_mode": adap_mode,
+                                    "adap_Kg": adap_Kg if use_adaptive else None,
                                 }
                             )
                 
                 # Gather best noise for each batch element
-                candidate_noises_batch = all_noises.reshape(N, batch_size, *all_noises.shape[1:])  # [N, batch_size, C, H, W]
+                candidate_noises_batch = all_noises.reshape(N_loop, batch_size_cur, *all_noises.shape[1:])  # [N, batch_size, C, H, W]
                 
                 # Gather best noise for each batch element
                 new_pivot_noise = torch.stack([
@@ -953,6 +1004,12 @@ def generate_image_grid(
     PIL.Image.fromarray(image, 'RGB').save(dest_path)
     
     print('Done.')
+    return {
+        'avg_score': float(avg_score),
+        'best_score': float(scores.max().item()),
+        'min_score': float(scores.min().item()),
+        'scores': [float(x) for x in scores.detach().cpu().tolist()],
+    }
 
 #----------------------------------------------------------------------------
 

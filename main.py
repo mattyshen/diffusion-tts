@@ -9,7 +9,7 @@ Usage examples:
 Arguments:
     --backend   : 'sd' or 'edm' (required)
     --scorer    : 'brightness', 'compressibility', 'clip', or 'imagenet' (required)
-    --method    : Sampling method (available: 'naive', 'rejection', 'beam', 'mcts', 'zero_order', 'eps_greedy') (default: 'naive')
+    --method    : Sampling method (available: 'naive', 'rejection', 'beam', 'mcts', 'zero_order', 'eps_greedy', 'adap_eps_greedy') (default: 'naive')
     --prompt    : Prompt for SD (default: 'A beautiful landscape')
     --output    : Output filename
     --N, --lambda_, --eps, --K, --B, --S : sampling parameters (see code for defaults)
@@ -23,6 +23,7 @@ import argparse
 import importlib.util
 import torch
 import numpy as np
+import json
 from pathlib import Path
 from PIL import Image
 import importlib
@@ -96,6 +97,41 @@ def main():
             cleaned = cleaned.replace("__", "_")
         return (cleaned[:max_len] if cleaned else "prompt")
 
+    def _load_adap_profile(path):
+        if path is None:
+            raise ValueError("Adaptive eps-greedy requires --adap_profile_path")
+        profile_path = Path(path)
+        if not profile_path.exists():
+            raise ValueError(f"Adaptive profile not found: {profile_path}")
+        suffix = profile_path.suffix.lower()
+        if suffix == ".npy":
+            values = np.asarray(np.load(profile_path), dtype=float).reshape(-1)
+        elif suffix == ".json":
+            with open(profile_path, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+            if isinstance(payload, list):
+                values = np.asarray(payload, dtype=float).reshape(-1)
+            elif isinstance(payload, dict):
+                if "values" in payload:
+                    values = np.asarray(payload["values"], dtype=float).reshape(-1)
+                elif "z" in payload:
+                    values = np.asarray(payload["z"], dtype=float).reshape(-1)
+                else:
+                    numeric_keys = [k for k in payload.keys() if str(k).isdigit()]
+                    if len(numeric_keys) == len(payload):
+                        values = np.asarray([payload[k] for k in sorted(payload.keys(), key=lambda x: int(x))], dtype=float).reshape(-1)
+                    else:
+                        raise ValueError(f"Unsupported JSON adaptive profile format: {profile_path}")
+            else:
+                raise ValueError(f"Unsupported JSON adaptive profile format: {profile_path}")
+        else:
+            values = np.asarray(np.loadtxt(profile_path, dtype=float), dtype=float).reshape(-1)
+        if values.size == 0:
+            raise ValueError(f"Adaptive profile is empty: {profile_path}")
+        if not np.all(np.isfinite(values)):
+            raise ValueError(f"Adaptive profile contains non-finite values: {profile_path}")
+        return [float(x) for x in values.tolist()]
+
     # -----------
     # CLI Arguments
     # -----------
@@ -105,7 +141,7 @@ def main():
     )
     parser.add_argument('--backend', type=str, choices=['edm', 'sd'], required=True, help='Backend: edm or sd')
     parser.add_argument('--scorer', type=str, choices=['brightness', 'compressibility', 'clip', 'imagenet'], required=True, help='Scorer name')
-    parser.add_argument('--method', type=str, default='naive', help='Sampling method (naive, rejection, beam, mcts, zero_order, eps_greedy)')
+    parser.add_argument('--method', type=str, default='naive', help='Sampling method (naive, rejection, beam, mcts, zero_order, eps_greedy, adap_eps_greedy)')
     parser.add_argument('--prompt', type=str, default='YOUR PROMPT HERE', help='Prompt for SD')
     parser.add_argument('--prompt_file', type=str, default=None, help='Path to text file with one SD prompt per line')
     parser.add_argument('--class_indices', type=str, default=None, help='Comma-separated ImageNet class indices for EDM (e.g., "0,1,2,3,4")')
@@ -122,7 +158,16 @@ def main():
     parser.add_argument('--log_search_data', action='store_true', help='Enable candidate-level JSONL logging')
     parser.add_argument('--search_log_dir', type=str, default='logs/search_stats', help='Directory for search logs')
     parser.add_argument('--search_log_prefix', type=str, default='search_data', help='Prefix for search log file name')
+    parser.add_argument('--adap_profile_path', type=str, default=None, help='Path to adaptive profile vector (txt/json/npy), one value per denoising step')
+    parser.add_argument('--adap_alpha', type=float, default=0.0, help='Adaptive threshold alpha: use full search when profile[t] >= alpha')
+    parser.add_argument('--adap_Kg', type=int, default=4, help='Adaptive global-only candidate count when profile[t] < alpha')
     args = parser.parse_args()
+    args.method = args.method.lower().replace("-", "_")
+    valid_methods = {'naive', 'rejection', 'beam', 'mcts', 'zero_order', 'eps_greedy', 'adap_eps_greedy'}
+    if args.method not in valid_methods:
+        raise ValueError(f"Unknown method: {args.method}")
+    if args.adap_Kg < 1:
+        raise ValueError("--adap_Kg must be >= 1")
 
     # -----------
     # Validation
@@ -148,6 +193,7 @@ def main():
         ).to(args.device)
 
         method = args.method
+        num_inference_steps = 50
         MASTER_PARAMS = {
             'N': args.N,
             'lambda': args.lambda_,
@@ -156,6 +202,15 @@ def main():
             'B': args.B,
             'S': args.S,
         }
+        if method == "adap_eps_greedy":
+            adap_profile = _load_adap_profile(args.adap_profile_path)
+            if len(adap_profile) != num_inference_steps:
+                raise ValueError(
+                    f"Adaptive profile length mismatch for SD: got {len(adap_profile)}, expected {num_inference_steps}"
+                )
+            MASTER_PARAMS["adap_z_profile"] = adap_profile
+            MASTER_PARAMS["adap_alpha"] = float(args.adap_alpha)
+            MASTER_PARAMS["adap_Kg"] = int(args.adap_Kg)
 
         prompts = [args.prompt]
         if args.prompt_file is not None:
@@ -190,7 +245,7 @@ def main():
             for _ in range(MASTER_PARAMS['N'] if method == "rejection" else 1):
                 result, score = local_pipe(
                     prompt=prompt_text,
-                    num_inference_steps=50,
+                    num_inference_steps=num_inference_steps,
                     score_function=scorer,
                     method=method,
                     params=MASTER_PARAMS,
@@ -255,6 +310,7 @@ def main():
             'mcts': SamplingMethod.MCTS,
             'zero_order': SamplingMethod.ZERO_ORDER,
             'eps_greedy': SamplingMethod.EPS_GREEDY,
+            'adap_eps_greedy': SamplingMethod.ADAP_EPS_GREEDY,
         }
         if args.method not in method_map:
             raise ValueError(f"Unknown method: {args.method}")
@@ -262,7 +318,7 @@ def main():
         sampling_params = {'scorer': scorer}
 
         # Add master params if relevant for method
-        if args.method in ['rejection', 'zero_order', 'eps_greedy', 'beam', 'mcts']:
+        if args.method in ['rejection', 'zero_order', 'eps_greedy', 'adap_eps_greedy', 'beam', 'mcts']:
             if args.N is not None:
                 sampling_params['N'] = args.N
             if args.K is not None:
@@ -275,6 +331,15 @@ def main():
                 sampling_params['B'] = args.B
             if args.S is not None:
                 sampling_params['S'] = args.S
+            if args.method == 'adap_eps_greedy':
+                adap_profile = _load_adap_profile(args.adap_profile_path)
+                if len(adap_profile) != num_steps:
+                    raise ValueError(
+                        f"Adaptive profile length mismatch for EDM: got {len(adap_profile)}, expected {num_steps}"
+                    )
+                sampling_params['adap_z'] = adap_profile
+                sampling_params['adap_alpha'] = float(args.adap_alpha)
+                sampling_params['adap_Kg'] = int(args.adap_Kg)
 
         search_logger = None
         if args.log_search_data:
@@ -301,7 +366,7 @@ def main():
             print(f"[EDM] Search logging enabled: {run_path}")
 
         outname = args.output or f"edm_{args.method}_{args.scorer}.png"
-        generate_image_grid(
+        edm_result = generate_image_grid(
             network_pkl,
             outname,
             latents,
@@ -321,7 +386,17 @@ def main():
         )
         print(f"\n[EDM] Saved: {outname}\n")
         if search_logger is not None:
-            search_logger.log({"event_type": "run_end", "ts_utc": utc_now_iso(), "output": outname})
+            run_end_event = {"event_type": "run_end", "ts_utc": utc_now_iso(), "output": outname}
+            if isinstance(edm_result, dict):
+                if edm_result.get("best_score") is not None:
+                    run_end_event["best_score"] = float(edm_result["best_score"])
+                if edm_result.get("avg_score") is not None:
+                    run_end_event["avg_score"] = float(edm_result["avg_score"])
+                if edm_result.get("min_score") is not None:
+                    run_end_event["min_score"] = float(edm_result["min_score"])
+                if edm_result.get("scores") is not None:
+                    run_end_event["per_sample_scores"] = [float(x) for x in edm_result["scores"]]
+            search_logger.log(run_end_event)
             search_logger.close()
 
 if __name__ == '__main__':
