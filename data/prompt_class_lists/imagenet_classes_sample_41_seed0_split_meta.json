@@ -1,0 +1,21 @@
+{
+  "classes_file": "data/prompt_class_lists/imagenet_classes_sample_41_seed0.txt",
+  "indices_file": "data/prompt_class_lists/imagenet_indices_sample_41_seed0.txt",
+  "total_count": 41,
+  "profile_count": 5,
+  "eval_count": 36,
+  "classes_first_file": "data/prompt_class_lists/imagenet_classes_sample_41_seed0_first5.txt",
+  "classes_last_file": "data/prompt_class_lists/imagenet_classes_sample_41_seed0_last36.txt",
+  "indices_first_file": "data/prompt_class_lists/imagenet_indices_sample_41_seed0_first5.txt",
+  "indices_last_file": "data/prompt_class_lists/imagenet_indices_sample_41_seed0_last36.txt",
+  "classes_first_preview": [
+    "tow truck",
+    "sturgeon",
+    "sax"
+  ],
+  "classes_last_preview": [
+    "whiptail",
+    "toy poodle",
+    "acorn"
+  ]
+}

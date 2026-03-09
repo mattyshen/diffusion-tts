@@ -132,6 +132,22 @@ def main():
             raise ValueError(f"Adaptive profile contains non-finite values: {profile_path}")
         return [float(x) for x in values.tolist()]
 
+    def _resolve_adap_alpha(adap_profile, adap_alpha, adap_alpha_quantile):
+        if adap_alpha_quantile is None:
+            return float(adap_alpha), None
+        q = float(adap_alpha_quantile)
+        if q < 0.0 or q > 1.0:
+            raise ValueError("--adap_alpha_quantile must be in [0, 1]")
+        values = np.sort(np.asarray(adap_profile, dtype=float).reshape(-1))
+        idx = int(np.ceil(q * values.size)) - 1
+        idx = min(max(idx, 0), values.size - 1)
+        alpha = float(values[idx])
+        realized_frac = float(np.mean(values <= alpha))
+        return alpha, {
+            "adap_alpha_quantile": q,
+            "adap_alpha_quantile_realized_frac_le": realized_frac,
+        }
+
     # -----------
     # CLI Arguments
     # -----------
@@ -160,6 +176,7 @@ def main():
     parser.add_argument('--search_log_prefix', type=str, default='search_data', help='Prefix for search log file name')
     parser.add_argument('--adap_profile_path', type=str, default=None, help='Path to adaptive profile vector (txt/json/npy), one value per denoising step')
     parser.add_argument('--adap_alpha', type=float, default=0.0, help='Adaptive threshold alpha: use full search when profile[t] >= alpha')
+    parser.add_argument('--adap_alpha_quantile', type=float, default=None, help='If set for adap_eps_greedy, derive alpha from empirical z-profile quantile q in [0,1]')
     parser.add_argument('--adap_Kg', type=int, default=4, help='Adaptive global-only candidate count when profile[t] < alpha')
     args = parser.parse_args()
     args.method = args.method.lower().replace("-", "_")
@@ -168,6 +185,8 @@ def main():
         raise ValueError(f"Unknown method: {args.method}")
     if args.adap_Kg < 1:
         raise ValueError("--adap_Kg must be >= 1")
+    if args.adap_alpha_quantile is not None and not (0.0 <= args.adap_alpha_quantile <= 1.0):
+        raise ValueError("--adap_alpha_quantile must be in [0, 1]")
 
     # -----------
     # Validation
@@ -208,9 +227,21 @@ def main():
                 raise ValueError(
                     f"Adaptive profile length mismatch for SD: got {len(adap_profile)}, expected {num_inference_steps}"
                 )
+            resolved_alpha, alpha_meta = _resolve_adap_alpha(
+                adap_profile=adap_profile,
+                adap_alpha=args.adap_alpha,
+                adap_alpha_quantile=args.adap_alpha_quantile,
+            )
             MASTER_PARAMS["adap_z_profile"] = adap_profile
-            MASTER_PARAMS["adap_alpha"] = float(args.adap_alpha)
+            MASTER_PARAMS["adap_alpha"] = float(resolved_alpha)
             MASTER_PARAMS["adap_Kg"] = int(args.adap_Kg)
+            if alpha_meta is not None:
+                MASTER_PARAMS.update(alpha_meta)
+                print(
+                    f"[ADAP] SD alpha from quantile q={alpha_meta['adap_alpha_quantile']:.4f}: "
+                    f"alpha={resolved_alpha:.6g} "
+                    f"(fraction z<=alpha: {alpha_meta['adap_alpha_quantile_realized_frac_le']:.3f})"
+                )
 
         prompts = [args.prompt]
         if args.prompt_file is not None:
@@ -337,9 +368,21 @@ def main():
                     raise ValueError(
                         f"Adaptive profile length mismatch for EDM: got {len(adap_profile)}, expected {num_steps}"
                     )
+                resolved_alpha, alpha_meta = _resolve_adap_alpha(
+                    adap_profile=adap_profile,
+                    adap_alpha=args.adap_alpha,
+                    adap_alpha_quantile=args.adap_alpha_quantile,
+                )
                 sampling_params['adap_z'] = adap_profile
-                sampling_params['adap_alpha'] = float(args.adap_alpha)
+                sampling_params['adap_alpha'] = float(resolved_alpha)
                 sampling_params['adap_Kg'] = int(args.adap_Kg)
+                if alpha_meta is not None:
+                    sampling_params.update(alpha_meta)
+                    print(
+                        f"[ADAP] EDM alpha from quantile q={alpha_meta['adap_alpha_quantile']:.4f}: "
+                        f"alpha={resolved_alpha:.6g} "
+                        f"(fraction z<=alpha: {alpha_meta['adap_alpha_quantile_realized_frac_le']:.3f})"
+                    )
 
         search_logger = None
         if args.log_search_data:

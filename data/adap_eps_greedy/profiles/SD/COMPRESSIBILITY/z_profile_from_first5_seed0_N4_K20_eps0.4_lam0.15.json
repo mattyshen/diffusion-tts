@@ -1,0 +1,24 @@
+{
+  "log_dir": "logs/search_stats/adap_eps_greedy/PROFILE_DATA/SD/COMPRESSIBILITY/eps_greedy_pfirst5_seed0_N4_K20_eps0.4_lam0.15",
+  "selected_files": [
+    "logs/search_stats/adap_eps_greedy/PROFILE_DATA/SD/COMPRESSIBILITY/eps_greedy_pfirst5_seed0_N4_K20_eps0.4_lam0.15/eps_greedy_pfirst5_seed0_N4_K20_eps0.4_lam0.15_sd_eps_greedy_compressibility_p000_20260308T195410Z.jsonl",
+    "logs/search_stats/adap_eps_greedy/PROFILE_DATA/SD/COMPRESSIBILITY/eps_greedy_pfirst5_seed0_N4_K20_eps0.4_lam0.15/eps_greedy_pfirst5_seed0_N4_K20_eps0.4_lam0.15_sd_eps_greedy_compressibility_p001_20260308T195921Z.jsonl",
+    "logs/search_stats/adap_eps_greedy/PROFILE_DATA/SD/COMPRESSIBILITY/eps_greedy_pfirst5_seed0_N4_K20_eps0.4_lam0.15/eps_greedy_pfirst5_seed0_N4_K20_eps0.4_lam0.15_sd_eps_greedy_compressibility_p002_20260308T200428Z.jsonl",
+    "logs/search_stats/adap_eps_greedy/PROFILE_DATA/SD/COMPRESSIBILITY/eps_greedy_pfirst5_seed0_N4_K20_eps0.4_lam0.15/eps_greedy_pfirst5_seed0_N4_K20_eps0.4_lam0.15_sd_eps_greedy_compressibility_p003_20260308T200937Z.jsonl",
+    "logs/search_stats/adap_eps_greedy/PROFILE_DATA/SD/COMPRESSIBILITY/eps_greedy_pfirst5_seed0_N4_K20_eps0.4_lam0.15/eps_greedy_pfirst5_seed0_N4_K20_eps0.4_lam0.15_sd_eps_greedy_compressibility_p004_20260308T201445Z.jsonl"
+  ],
+  "num_jsonl_total": 5,
+  "num_jsonl_selected": 5,
+  "method": "eps_greedy",
+  "expected_steps": 50,
+  "num_complete_units": 5,
+  "num_candidate_rows_complete": 20000,
+  "profile_path": "data/adap_eps_greedy/profiles/SD/COMPRESSIBILITY/z_profile_from_first5_seed0_N4_K20_eps0.4_lam0.15.txt",
+  "curve_csv_path": "data/adap_eps_greedy/profiles/SD/COMPRESSIBILITY/z_profile_from_first5_seed0_N4_K20_eps0.4_lam0.15.csv",
+  "backend_seen": [
+    "sd"
+  ],
+  "scorer_seen": [
+    "compressibility"
+  ]
+}
