@@ -13,12 +13,16 @@
   "expected_steps": 50,
   "num_complete_units": 5,
   "num_candidate_rows_complete": 20000,
-  "profile_path": "data/adap_eps_greedy/profiles/SD/COMPRESSIBILITY/z_profile_from_first5_seed0_N4_K20_eps0.4_lam0.15.txt",
-  "curve_csv_path": "data/adap_eps_greedy/profiles/SD/COMPRESSIBILITY/z_profile_from_first5_seed0_N4_K20_eps0.4_lam0.15.csv",
+  "num_curve_rows": 1000,
+  "curve_csv_path": "data/adap_eps_greedy/profiles/SD/COMPRESSIBILITY/local_value_curve_from_first5_seed0_N4_K20_eps0.4_lam0.15.csv",
+  "timestep_csv_path": "data/adap_eps_greedy/profiles/SD/COMPRESSIBILITY/local_value_timestep_from_first5_seed0_N4_K20_eps0.4_lam0.15.csv",
+  "k_profile_path": "data/adap_eps_greedy/profiles/SD/COMPRESSIBILITY/local_k_profile_from_first5_seed0_N4_K20_eps0.4_lam0.15.txt",
   "backend_seen": [
     "sd"
   ],
   "scorer_seen": [
     "compressibility"
-  ]
+  ],
+  "alpha_start_z": 0.0,
+  "alpha_marginal_z": 0.0
 }
